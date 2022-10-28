@@ -1,5 +1,5 @@
 # ACOReader
-[![License: The Unlicense](https://unlicense.org/)](https://img.shields.io/badge/license-The%20Unlicense-success)]
+[![License: The Unlicense](https://img.shields.io/badge/license-The%20Unlicense-success)](https://unlicense.org/)
 
 ## Table of Contents
 * [General Information](#general-information)

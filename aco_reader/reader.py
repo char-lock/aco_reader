@@ -30,10 +30,12 @@ encoded inside.
 #
 from io import BytesIO
 import os
+import sys
 from typing import Optional
+from ctypes import c_uint16, c_int16, c_uint32, pointer, memmove, sizeof
 
 
-def read_int16(file: BytesIO) -> int:
+def read_uint16(file: BytesIO) -> int:
     """ Reads an unsigned 16-bit integer from `file` and returns it as
     an int.
 
@@ -45,20 +47,46 @@ def read_int16(file: BytesIO) -> int:
 
     #### Returns
     * int
-      * the 16-bit integer as an int
+      * the 16-bit unsigned integer as an int
 
     """
     # Read two bytes from the file; .aco files are in big-endian order,
-    # so we don't need to flip anything.
+    # so we need to check whether or not we need to flip the bits.
     _c: bytes = file.read(2)
+    if (sys.byteorder == 'little'):
+      _c = _c[::-1]
     # Convert the read bytes straight to an integer.
-    _v: int = int(_c.hex(), base=16)
-    # We'll perform a quick check as we return for a negative value.
-    # This lets us treat the value as unsigned properly.
-    return _v if _v >= 0 else (_v + (1 << 16))
+    _v: c_uint16 = c_uint16(0)
+    memmove(pointer(_v), _c, sizeof(c_uint16))
+    return _v.value
+
+def read_int16(file: BytesIO) -> int:
+    """ Reads a signed 16-bit integer from `file` and returns it as
+    an int.
 
 
-def read_int32(file: BytesIO) -> int:
+    #### Parameters
+    * file: BytesIO
+      * input stream from a file from which to read
+
+
+    #### Returns
+    * int
+      * the signed 16-bit integer as an int
+
+    """
+    # Read two bytes from the file; .aco files are in big-endian order,
+    # so we need to check whether or not we need to flip the bits.
+    _c: bytes = file.read(2)
+    if (sys.byteorder == 'little'):
+      _c = _c[::-1]
+    # Convert the read bytes straight to an integer.
+    _v: c_int16 = c_int16(0)
+    memmove(pointer(_v), _c, sizeof(c_int16))
+    return _v.value
+
+
+def read_uint32(file: BytesIO) -> int:
     """ Reads an unsigned 32-bit integer from `file` and returns it as
     an int.
 
@@ -75,14 +103,15 @@ def read_int32(file: BytesIO) -> int:
       * the 32-bit integer as an int
 
     """
-    # Read four bytes from the file; .aco files are in big-endian order,
-    # so we don't need to flip anything.
+    # Read two bytes from the file; .aco files are in big-endian order,
+    # so we need to check whether or not we need to flip the bits.
     _c: bytes = file.read(4)
+    if (sys.byteorder == 'little'):
+      _c = _c[::-1]
     # Convert the read bytes straight to an integer.
-    _v: int = int(_c.hex(), base=16)
-    # We'll perform a quick check as we return for a negative value.
-    # This lets us treat the value as unsigned properly.
-    return _v if _v >= 0 else (_v + (1 << 32))
+    _v: c_uint32 = c_uint32(0)
+    memmove(pointer(_v), _c, sizeof(c_uint16))
+    return _v.value
 
 
 def read_string(file: BytesIO, length: int) -> str:
@@ -176,12 +205,7 @@ def get_cmyk(values: list[int]) -> list[float]:
         err: str = 'Too few values provided for CMYK conversion.\n    '
         err += f'Got {len(values)}, should be at least 4.'
         raise ValueError(err)
-    return [
-        values[0] / 65535 * 100,
-        values[1] / 65535 * 100,
-        values[2] / 65535 * 100,
-        values[3] / 65535 * 100
-    ]
+    return [v / 655.35 for v in values]
 
 
 def get_lab(values: list[int]) -> list[float]:
@@ -204,11 +228,7 @@ def get_lab(values: list[int]) -> list[float]:
         err: str = 'Too few values provided for LAB conversion.\n    '
         err += f'Got {len(values)}, should be at least 3.'
         raise ValueError(err)
-    return [
-        values[0] / 100,
-        (values[1] / 100) - 128 if -128 <= (values[1] / 100) - 128 <= 127 else ((values[1] - (1 << 16)) / 100),
-        (values[2] / 100) - 128 if -128 <= (values[2] / 100) - 128 <= 127 else ((values[2] - (1 << 16)) / 100)
-    ]
+    return [v / 100 for v in values[:3]]
 
 
 def interpret_colors(color_space: int, values: list[int]) -> str:
@@ -275,12 +295,23 @@ def read_color_values(file: BytesIO) -> str:
         value for the next color value
 
     """
-    color_space: int = read_int16(file)
-    c_val_0: int = read_int16(file)
-    c_val_1: int = read_int16(file)
-    c_val_2: int = read_int16(file)
-    c_val_3: int = read_int16(file)
-    n_len: int = read_int32(file)
+    color_space: int = read_uint16(file)
+    c_val_0: int = read_uint16(file)
+    # Check for the color space, as some will need signed values, and
+    # others use unsigned.
+    c_val_1: int = 0
+    c_val_2: int = 0
+    c_val_3: int = 0
+    if (color_space == 7):
+        # LAB color space uses signed integer values.
+        c_val_1 = read_int16(file)
+        c_val_2 = read_int16(file)
+        c_val_3 = read_int16(file)
+    else:
+        c_val_1 = read_uint16(file)
+        c_val_2 = read_uint16(file)
+        c_val_3 = read_uint16(file)
+    n_len: int = read_uint32(file)
     s_name: str = read_string(file, n_len)
     col: str = interpret_colors(color_space, [c_val_0, c_val_1, c_val_2, c_val_3])
     return s_name + ", " + col + "\n"
@@ -308,14 +339,14 @@ def read_file(filename: str, xargs: Optional[dict] = None) -> None:
     verbose: bool = xargs['verbose']
     fail_quiet: bool = xargs['fail_quiet']
     # Check the file version.
-    version: int = read_int16(_f)
+    version: int = read_uint16(_f)
     if (version != 2):
         if (not fail_quiet):
             raise ValueError(f"This script is currently unable to process .aco files of any version other than 2.\nversion = {version}")
         else:
             return
     # Get color count.
-    color_count: int = read_int16(_f)
+    color_count: int = read_uint16(_f)
     if (verbose):
         print(f"Reading {color_count} colors from '{filename}' ...")
     # Process all of the colors.
@@ -330,8 +361,11 @@ def read_file(filename: str, xargs: Optional[dict] = None) -> None:
                 continue
             else:
                 raise ex
-        with open(filename[:-4].replace(xargs['input_directory'], xargs['output_directory']) + '.txt', 'a+') as f:
-            f.write(_wr)
+        with open(
+          filename[:-4].replace(
+            xargs['input_directory'], xargs['output_directory']
+          ) + '.txt', 'a+', encoding=sys.getdefaultencoding()) as out:
+            out.write(_wr)
     if (verbose):
         print(f"Finished reading '{filename}'. Results saved in '{filename[:-4]}.txt'.")
         if (fail_quiet):

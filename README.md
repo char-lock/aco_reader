@@ -36,7 +36,6 @@ This is a brand-new project that I scripted very quickly. There is almost
 guaranteed to be bugs in the code, as well as being generally unoptimized.
 However, the current focuses are:
 
-* Create executable files for Linux, Windows, and Apple to allow for easier use.
 * Add the ability to create new .aco files, as opposed to simply getting the color information.
 
 ## Issues/Feature Requests

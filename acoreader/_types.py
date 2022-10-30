@@ -70,6 +70,32 @@ class ColorSpace(Enum):
             return ColorSpace.HKS
         else:
             return ColorSpace.UNSET
+    
+    @classmethod
+    def from_name(name: str) -> 'ColorSpace':
+        _n: str = name.lower()
+        if _n == 'rgb':
+            return ColorSpace.RGB
+        elif _n == 'hsb':
+            return ColorSpace.HSB
+        elif _n == 'cmyk':
+            return ColorSpace.CMYK
+        elif _n == 'pantone':
+            return ColorSpace.PANTONE
+        elif _n == 'focoltone':
+            return ColorSpace.FOCOLTONE
+        elif _n == 'trumatch':
+            return ColorSpace.TRUMATCH
+        elif _n == 'toyo88':
+            return ColorSpace.TOYO88
+        elif _n == 'lab':
+            return ColorSpace.LAB
+        elif _n == 'grayscale':
+            return ColorSpace.GRAYSCALE
+        elif _n == 'hks':
+            return ColorSpace.HKS
+        else:
+            return ColorSpace.UNSET
 
 
 def validate_color_space(color_space: ColorSpace) -> None:
@@ -78,7 +104,7 @@ def validate_color_space(color_space: ColorSpace) -> None:
     
     """
     if color_space.value in [-1, 3, 4, 5, 6, 10]:
-        err: str = f'The selected color value ({color_space.name}) has '
+        err: str = f'The selected color space ({color_space.name}) has '
         err += 'not been handled as of yet.'
         raise ValueError(err)
         
@@ -196,3 +222,10 @@ class ColorSwatch(object):
             for i in range(len(value_labels)):
                 cv[value_labels[i]] = values[i]
             self._color_values = cv
+
+    def to_bytes(self):
+        """ Returns the ColorSwatch as the bytes that would be written
+        to an ACO file.
+        
+        """
+        decode_method: Callable = decode_rgb

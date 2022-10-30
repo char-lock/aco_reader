@@ -28,12 +28,15 @@ contains metadata.
 #
 # For more information, please refer to <https://unlicense.org>
 #
+__package__ = 'acoreader'
+__version__ = '0.3.0'
+
 import os
 import sys
 from typing import Dict, List, Optional, Union
-from reader import read_file
 
-__version__ = '0.1.0'
+sys.path.insert(0, os.sep.join([os.path.abspath(os.curdir), '..']))
+from .reader import read_file
 
 
 # Argument variables
